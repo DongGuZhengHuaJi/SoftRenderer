@@ -74,20 +74,11 @@ void Application::render() {
 
     drawScene();
 
-    // Draw crosshair cursor
-    if (m_showHelp) {
-        m_renderer.drawPixel(Vec2(m_mouseX, m_mouseY), 0xFFFFFFFF);
-        m_renderer.drawPixel(Vec2(m_mouseX - 1, m_mouseY), 0xFFFFFFFF);
-        m_renderer.drawPixel(Vec2(m_mouseX + 1, m_mouseY), 0xFFFFFFFF);
-        m_renderer.drawPixel(Vec2(m_mouseX, m_mouseY - 1), 0xFFFFFFFF);
-        m_renderer.drawPixel(Vec2(m_mouseX, m_mouseY + 1), 0xFFFFFFFF);
-    }
-
     // Show multi-click previews
     if (m_drawMode == DrawMode::Line && !m_lineFirstClick) {
         m_renderer.drawLine(m_lineStart, Vec2(m_mouseX, m_mouseY), 0x88FFFFFF);
     }
-    if (m_drawMode == DrawMode::Triangle) {
+    else if (m_drawMode == DrawMode::Triangle) {
         if (m_triangleClicks == 1) {
             m_renderer.drawLine(m_triangleVertices[0], Vec2(m_mouseX, m_mouseY), 0x88FFFFFF);
         } else if (m_triangleClicks == 2) {
@@ -95,6 +86,11 @@ void Application::render() {
             m_renderer.drawLine(m_triangleVertices[1], Vec2(m_mouseX, m_mouseY), 0x88FFFFFF);
             m_renderer.drawLine(Vec2(m_mouseX, m_mouseY), m_triangleVertices[0], 0x88FFFFFF);
         }
+    }
+    else if (m_drawMode == DrawMode::Circle && !m_circleFirstClick) {
+        float radius = sqrtf((m_mouseX - m_circleCenter.x) * (m_mouseX - m_circleCenter.x) +
+                             (m_mouseY - m_circleCenter.y) * (m_mouseY - m_circleCenter.y));
+        m_renderer.drawCircle(m_circleCenter, radius, 0x88FFFFFF);
     }
 
     SDL_UpdateTexture(
@@ -140,24 +136,28 @@ void Application::handleKeyDown(const SDL_KeyboardEvent& key) {
         m_drawMode = DrawMode::Point;
         m_lineFirstClick = true;
         m_triangleClicks = 0;
+        m_circleFirstClick = true;
         printStatus();
         break;
     case SDLK_2:
         m_drawMode = DrawMode::Line;
         m_lineFirstClick = true;
         m_triangleClicks = 0;
+        m_circleFirstClick = true;
         printStatus();
         break;
     case SDLK_3:
         m_drawMode = DrawMode::Triangle;
         m_lineFirstClick = true;
         m_triangleClicks = 0;
+        m_circleFirstClick = true;
         printStatus();
         break;
     case SDLK_4:
         m_drawMode = DrawMode::Circle;
         m_lineFirstClick = true;
         m_triangleClicks = 0;
+        m_circleFirstClick = true;
         printStatus();
         break;
     case SDLK_c:
@@ -171,12 +171,7 @@ void Application::handleKeyDown(const SDL_KeyboardEvent& key) {
         std::cout << "[Color] Changed to 0x" << std::hex << m_currentColor << std::dec << "\n";
         break;
     case SDLK_h:
-        m_showHelp = !m_showHelp;
-        if (m_showHelp) {
-            printHelp();
-        } else {
-            std::cout << "[Help] HUD hidden. Press H to show again.\n";
-        }
+        printHelp();
         break;
     case SDLK_BACKSPACE:
         // Undo last shape
@@ -240,9 +235,17 @@ void Application::handleMouseButtonDown(const SDL_MouseButtonEvent& button) {
         break;
 
     case DrawMode::Circle: {
-        float radius = 40.0f + (rand() % 60);
-        m_scene.addCircle({pos, radius, m_currentColor});
-        std::cout << "[Draw] Circle at (" << pos.x << ", " << pos.y << ") r=" << radius << "\n";
+        if (m_circleFirstClick) {
+            m_circleCenter = pos;
+            m_circleFirstClick = false;
+            std::cout << "[Circle] Center at (" << pos.x << ", " << pos.y << "), click radius point...\n";
+        } else {
+            float radius = sqrtf((pos.x - m_circleCenter.x) * (pos.x - m_circleCenter.x) +
+                                 (pos.y - m_circleCenter.y) * (pos.y - m_circleCenter.y));
+            m_scene.addCircle({m_circleCenter, radius, m_currentColor});
+            m_circleFirstClick = true;
+            std::cout << "[Draw] Circle at (" << pos.x << ", " << pos.y << ") r=" << radius << "\n";
+        }
         break;
     }
     }

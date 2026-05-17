@@ -57,9 +57,12 @@ private:
     int m_triangleClicks = 0;
     Vec2 m_triangleVertices[2];
 
+    // Multi-click state for circle (2 clicks)
+    bool m_circleFirstClick = true;
+    Vec2 m_circleCenter;
+
     // Mouse cursor position
     int m_mouseX = 0;
     int m_mouseY = 0;
 
-    bool m_showHelp = true;
 };
