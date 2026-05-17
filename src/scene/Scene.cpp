@@ -1,15 +1,19 @@
 #include "scene/Scene.h"
 
 Scene::Scene() {
-    // Initialize scene with some default shapes
-    // addPoint({Vec2(100, 100), 0xFFFF0000});
-    // addLine({Vec2(150, 150), Vec2(300, 300), 0xFF00FF00});
-    // addTriangle({Vec2(400, 100), Vec2(500, 300), Vec2(300, 300), 0xFF0000FF});
-    // addCircle({Vec2(600, 400), 50, 0xFFFFFF00});
+    // Demo: a few lines and circles so the screen isn't empty
+    // addLine({Vec2(50, 50), Vec2(200, 150), 0xFFFF0000});
+    // addLine({Vec2(200, 150), Vec2(100, 300), 0xFF00FF00});
+    // addLine({Vec2(100, 300), Vec2(50, 50), 0xFF0000FF});
+
+    // addCircle({Vec2(400, 200), 80, 0xFFFFFF00});
+    // addCircle({Vec2(550, 150), 40, 0xFFFF00FF});
+    // addCircle({Vec2(650, 300), 60, 0xFF00FFFF});
+
+    // addTriangle({Vec2(500, 400), Vec2(600, 500), Vec2(400, 500), 0xFFFF8800});
 }
 
 Scene::~Scene() {
-
 }
 
 void Scene::addPoint(const Point& point) {

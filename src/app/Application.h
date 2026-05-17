@@ -4,6 +4,13 @@
 #include "renderer/FrameBuffer.h"
 #include "scene/Scene.h"
 
+enum class DrawMode {
+    Point,
+    Line,
+    Triangle,
+    Circle
+};
+
 class Application {
 public:
     Application();
@@ -15,6 +22,17 @@ private:
     void update();
     void render();
     void drawScene();
+
+    void handleKeyDown(const SDL_KeyboardEvent& key);
+    void handleMouseButtonDown(const SDL_MouseButtonEvent& button);
+    void handleMouseMotion(const SDL_MouseMotionEvent& motion);
+
+    void printHelp() const;
+    void printStatus() const;
+    const char* drawModeName() const;
+
+    uint32_t getNextColor();
+
 private:
     bool m_running = false;
 
@@ -27,4 +45,21 @@ private:
 
     Scene m_scene;
 
+    DrawMode m_drawMode = DrawMode::Line;
+    uint32_t m_currentColor = 0xFFFF0000;
+    int m_colorIndex = 0;
+
+    // Multi-click state for line (2 clicks)
+    bool m_lineFirstClick = true;
+    Vec2 m_lineStart;
+
+    // Multi-click state for triangle (3 clicks)
+    int m_triangleClicks = 0;
+    Vec2 m_triangleVertices[2];
+
+    // Mouse cursor position
+    int m_mouseX = 0;
+    int m_mouseY = 0;
+
+    bool m_showHelp = true;
 };
