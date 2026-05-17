@@ -1,5 +1,12 @@
 #include "app/Application.h"
 #include "config.h"
+#include "graphics/Point.h"
+#include "graphics/Line.h"
+#include "graphics/Triangle.h"
+#include "graphics/Circle.h"
+#include "graphics/Rectangle.h"
+#include "graphics/Square.h"
+#include <SDL2/SDL_keycode.h>
 #include <iostream>
 
 Application::Application() : m_frameBuffer(APP_WIDTH, APP_HEIGHT), m_renderer(m_frameBuffer) {
@@ -92,6 +99,15 @@ void Application::render() {
                              (m_mouseY - m_circleCenter.y) * (m_mouseY - m_circleCenter.y));
         m_renderer.drawCircle(m_circleCenter, radius, 0x88FFFFFF);
     }
+    else if (m_drawMode == DrawMode::Rectangle && !m_rectangleFirstClick) {
+        m_renderer.drawRectangle(m_rectangleStart, Vec2(m_mouseX, m_mouseY), 0x88FFFFFF);
+    }
+    else if (m_drawMode == DrawMode::Square && !m_squareFirstClick) {
+        float sideLength = std::max(std::abs(m_mouseX - m_squareStart.x), std::abs(m_mouseY - m_squareStart.y));
+        float tlX = (m_mouseX >= m_squareStart.x) ? m_squareStart.x : m_squareStart.x - sideLength;
+        float tlY = (m_mouseY >= m_squareStart.y) ? m_squareStart.y : m_squareStart.y - sideLength;
+        m_renderer.drawSquare(Vec2(tlX, tlY), sideLength, 0x88FFFFFF);
+    }
 
     SDL_UpdateTexture(
         m_texture,
@@ -113,20 +129,39 @@ void Application::render() {
 }
 
 void Application::drawScene() {
-    for (const auto& point : m_scene.points) {
-        m_renderer.drawPixel(point.position, point.color);
-    }
-
-    for (const auto& line : m_scene.lines) {
-        m_renderer.drawLine(line.start, line.end, line.color);
-    }
-
-    for (const auto& triangle : m_scene.triangles) {
-        m_renderer.drawTriangle(triangle.v0, triangle.v1, triangle.v2, triangle.color);
-    }
-
-    for (const auto& circle : m_scene.circles) {
-        m_renderer.drawCircle(circle.center, circle.radius, circle.color);
+    for (const auto& shape : m_scene.m_shapes) {
+        switch (shape->getType()) {
+            case 1: { // Point
+                auto p = std::static_pointer_cast<Point>(shape);
+                m_renderer.drawPixel(p->position, p->color);
+                break;
+            }
+            case 2: { // Line
+                auto l = std::static_pointer_cast<Line>(shape);
+                m_renderer.drawLine(l->start, l->end, l->color);
+                break;
+            }
+            case 3: { // Triangle
+                auto t = std::static_pointer_cast<Triangle>(shape);
+                m_renderer.drawTriangle(t->v0, t->v1, t->v2, t->color);
+                break;
+            }
+            case 4: { // Circle
+                auto c = std::static_pointer_cast<Circle>(shape);
+                m_renderer.drawCircle(c->center, c->radius, c->color);
+                break;
+            }
+            case 5: { // Rectangle
+                auto r = std::static_pointer_cast<Rectangle>(shape);
+                m_renderer.drawRectangle(r->topLeft, r->bottomRight, r->color);
+                break;
+            }
+            case 6: { // Square
+                auto s = std::static_pointer_cast<Square>(shape);
+                m_renderer.drawSquare(s->topLeft, s->sideLength, s->color);
+                break;
+            }
+        }
     }
 }
 
@@ -160,10 +195,25 @@ void Application::handleKeyDown(const SDL_KeyboardEvent& key) {
         m_circleFirstClick = true;
         printStatus();
         break;
+    case SDLK_5:
+        m_drawMode = DrawMode::Rectangle;
+        m_lineFirstClick = true;
+        m_triangleClicks = 0;
+        m_circleFirstClick = true;
+        printStatus();
+        break;
+    case SDLK_6:
+        m_drawMode = DrawMode::Square;
+        m_lineFirstClick = true;
+        m_triangleClicks = 0;
+        m_circleFirstClick = true;
+        printStatus();
+        break;
     case SDLK_c:
         m_scene.clear();
         m_lineFirstClick = true;
         m_triangleClicks = 0;
+        m_circleFirstClick = true;
         std::cout << "[Clear] All shapes removed.\n";
         break;
     case SDLK_r:
@@ -173,15 +223,11 @@ void Application::handleKeyDown(const SDL_KeyboardEvent& key) {
     case SDLK_h:
         printHelp();
         break;
-    case SDLK_BACKSPACE:
-        // Undo last shape
-        if (!m_scene.lines.empty()) m_scene.lines.pop_back();
-        else if (!m_scene.circles.empty()) m_scene.circles.pop_back();
-        else if (!m_scene.triangles.empty()) m_scene.triangles.pop_back();
-        else if (!m_scene.points.empty()) m_scene.points.pop_back();
-        m_lineFirstClick = true;
-        m_triangleClicks = 0;
-        std::cout << "[Undo] Last shape removed.\n";
+    case SDLK_q:
+        m_scene.undo();
+        break;
+    case SDLK_e:
+        m_scene.redo();
         break;
     case SDLK_ESCAPE:
         if (!m_lineFirstClick) {
@@ -190,6 +236,10 @@ void Application::handleKeyDown(const SDL_KeyboardEvent& key) {
         } else if (m_triangleClicks > 0) {
             m_triangleClicks = 0;
             std::cout << "[Cancel] Triangle drawing cancelled.\n";
+        }
+        else if (!m_circleFirstClick) {
+            m_circleFirstClick = true;
+            std::cout << "[Cancel] Circle drawing cancelled.\n";
         }
         break;
     }
@@ -202,7 +252,7 @@ void Application::handleMouseButtonDown(const SDL_MouseButtonEvent& button) {
 
     switch (m_drawMode) {
     case DrawMode::Point:
-        m_scene.addPoint({pos, m_currentColor});
+        m_scene.addPoint(pos, m_currentColor);
         std::cout << "[Draw] Point at (" << pos.x << ", " << pos.y << ")\n";
         break;
 
@@ -212,7 +262,7 @@ void Application::handleMouseButtonDown(const SDL_MouseButtonEvent& button) {
             m_lineFirstClick = false;
             std::cout << "[Line] Start at (" << pos.x << ", " << pos.y << "), click end point...\n";
         } else {
-            m_scene.addLine({m_lineStart, pos, m_currentColor});
+            m_scene.addLine(m_lineStart, pos, m_currentColor);
             m_lineFirstClick = true;
             std::cout << "[Line] End at (" << pos.x << ", " << pos.y << ")\n";
         }
@@ -228,7 +278,7 @@ void Application::handleMouseButtonDown(const SDL_MouseButtonEvent& button) {
             m_triangleClicks = 2;
             std::cout << "[Triangle] V2 at (" << pos.x << ", " << pos.y << "), click V3...\n";
         } else {
-            m_scene.addTriangle({m_triangleVertices[0], m_triangleVertices[1], pos, m_currentColor});
+            m_scene.addTriangle(m_triangleVertices[0], m_triangleVertices[1], pos, m_currentColor);
             m_triangleClicks = 0;
             std::cout << "[Triangle] V3 at (" << pos.x << ", " << pos.y << ")\n";
         }
@@ -242,9 +292,44 @@ void Application::handleMouseButtonDown(const SDL_MouseButtonEvent& button) {
         } else {
             float radius = sqrtf((pos.x - m_circleCenter.x) * (pos.x - m_circleCenter.x) +
                                  (pos.y - m_circleCenter.y) * (pos.y - m_circleCenter.y));
-            m_scene.addCircle({m_circleCenter, radius, m_currentColor});
+            m_scene.addCircle(m_circleCenter, radius, m_currentColor);
             m_circleFirstClick = true;
             std::cout << "[Draw] Circle at (" << pos.x << ", " << pos.y << ") r=" << radius << "\n";
+        }
+        break;
+    }
+    case DrawMode::Rectangle: {
+        if (m_rectangleFirstClick) {
+            m_rectangleStart = pos;
+            m_rectangleFirstClick = false;
+            std::cout << "[Rectangle] Start at (" << pos.x << ", " << pos.y << "), click opposite corner...\n";
+        } else {
+            Vec2 topLeft(
+                std::min(m_rectangleStart.x, pos.x),
+                std::min(m_rectangleStart.y, pos.y)
+            );
+            Vec2 bottomRight(
+                std::max(m_rectangleStart.x, pos.x),
+                std::max(m_rectangleStart.y, pos.y)
+            );
+            m_scene.addRectangle(topLeft, bottomRight, m_currentColor);
+            m_rectangleFirstClick = true;
+            std::cout << "[Rectangle] End at (" << pos.x << ", " << pos.y << ")\n";
+        }
+        break;
+    }
+    case DrawMode::Square: {
+        if (m_squareFirstClick) {
+            m_squareStart = pos;
+            m_squareFirstClick = false;
+            std::cout << "[Square] Start at (" << pos.x << ", " << pos.y << "), click opposite corner...\n";
+        } else {
+            float sideLength = std::max(std::abs(pos.x - m_squareStart.x), std::abs(pos.y - m_squareStart.y));
+            float tlX = (pos.x >= m_squareStart.x) ? m_squareStart.x : m_squareStart.x - sideLength;
+            float tlY = (pos.y >= m_squareStart.y) ? m_squareStart.y : m_squareStart.y - sideLength;
+            m_scene.addSquare(Vec2(tlX, tlY), sideLength, m_currentColor);
+            m_squareFirstClick = true;
+            std::cout << "[Square] End at (" << pos.x << ", " << pos.y << ") side=" << sideLength << "\n";
         }
         break;
     }
@@ -260,11 +345,12 @@ void Application::printHelp() const {
     std::cout << "\n";
     std::cout << "=== SoftRenderer - 2D Drawing ===\n";
     std::cout << "  Mouse Click      - Place shape\n";
-    std::cout << "  1/2/3/4          - Draw: Point / Line / Triangle / Circle\n";
+    std::cout << "  1/2/3/4/5/6      - Draw: Point / Line / Triangle / Circle / Rectangle / Square\n";
     std::cout << "  R                - Cycle color\n";
     std::cout << "  C                - Clear all shapes\n";
-    std::cout << "  Backspace        - Undo last shape\n";
-    std::cout << "  ESC              - Cancel current line/triangle\n";
+    std::cout << "  Q                - Undo last step\n";
+    std::cout << "  E                - Redo last step\n";
+    std::cout << "  ESC              - Cancel current line/triangle/circle\n";
     std::cout << "  H                - Toggle this HUD\n";
     std::cout << "  Close window     - Quit\n";
     std::cout << "================================\n\n";
@@ -280,6 +366,8 @@ const char* Application::drawModeName() const {
     case DrawMode::Line:     return "Line (2-click)";
     case DrawMode::Triangle: return "Triangle (3-click)";
     case DrawMode::Circle:   return "Circle (1-click)";
+    case DrawMode::Rectangle: return "Rectangle (2-click)";
+    case DrawMode::Square:   return "Square (2-click)";
     }
     return "Unknown";
 }

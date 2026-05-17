@@ -1,84 +1,88 @@
 #include "scene/Scene.h"
+#include "graphics/Shape.h"
+#include "graphics/Point.h"
+#include "graphics/Line.h"
+#include "graphics/Triangle.h"
+#include "graphics/Circle.h"
+#include "graphics/Rectangle.h"
+#include "graphics/Square.h"
+#include <iostream>
 
 Scene::Scene() {
-    // Demo: a few lines and circles so the screen isn't empty
-    // addLine({Vec2(50, 50), Vec2(200, 150), 0xFFFF0000});
-    // addLine({Vec2(200, 150), Vec2(100, 300), 0xFF00FF00});
-    // addLine({Vec2(100, 300), Vec2(50, 50), 0xFF0000FF});
-
-    // addCircle({Vec2(400, 200), 80, 0xFFFFFF00});
-    // addCircle({Vec2(550, 150), 40, 0xFFFF00FF});
-    // addCircle({Vec2(650, 300), 60, 0xFF00FFFF});
-
-    // addTriangle({Vec2(500, 400), Vec2(600, 500), Vec2(400, 500), 0xFFFF8800});
 }
 
 Scene::~Scene() {
 }
 
-void Scene::addPoint(const Point& point) {
-    points.push_back(point);
+void Scene::pushShape(std::shared_ptr<Shape> shape) {
+    m_shapes.push_back(shape);
+    m_undoStack.push(shape);
+    // Clear redo stack on new action
+    while (!m_redoStack.empty()) {
+        m_redoStack.pop();
+    }
 }
 
-void Scene::addLine(const Line& line) {
-    lines.push_back(line);
+void Scene::addPoint(Vec2 position, uint32_t color) {
+    pushShape(std::make_shared<Point>(position, color));
 }
 
-void Scene::addTriangle(const Triangle& triangle) {
-    triangles.push_back(triangle);
+void Scene::addLine(Vec2 start, Vec2 end, uint32_t color) {
+    pushShape(std::make_shared<Line>(start, end, color));
 }
 
-void Scene::addCircle(const Circle& circle) {
-    circles.push_back(circle);
+void Scene::addTriangle(Vec2 p1, Vec2 p2, Vec2 p3, uint32_t color) {
+    pushShape(std::make_shared<Triangle>(p1, p2, p3, color));
 }
 
-void Scene::updatePoint(int index, const Point& point) {
-    if (index < 0 || index >= points.size()) {
+void Scene::addCircle(Vec2 center, float radius, uint32_t color) {
+    pushShape(std::make_shared<Circle>(center, radius, color));
+}
+
+void Scene::addRectangle(Vec2 topLeft, Vec2 bottomRight, uint32_t color) {
+    pushShape(std::make_shared<Rectangle>(topLeft, bottomRight, color));
+}
+
+void Scene::addSquare(Vec2 topLeft, float sideLength, uint32_t color) {
+    pushShape(std::make_shared<Square>(topLeft, sideLength, color));
+}
+
+void Scene::undo() {
+    if (m_undoStack.empty()) {
+        std::cout << "[Undo] Nothing to undo.\n";
         return;
     }
-    points[index] = point;
+
+    auto shape = m_undoStack.top();
+    m_undoStack.pop();
+    m_redoStack.push(shape);
+
+    // Remove last matching shape from m_shapes
+    for (auto it = m_shapes.rbegin(); it != m_shapes.rend(); ++it) {
+        if (*it == shape) {
+            m_shapes.erase(std::next(it).base());
+            break;
+        }
+    }
+    std::cout << "[Undo] Last shape removed.\n";
 }
 
-void Scene::updateLine(int index, const Line& line) {
-    if (index < 0 || index >= lines.size()) {
+void Scene::redo() {
+    if (m_redoStack.empty()) {
+        std::cout << "[Redo] Nothing to redo.\n";
         return;
     }
-    lines[index] = line;
-}
 
-void Scene::updateTriangle(int index, const Triangle& triangle) {
-    if (index < 0 || index >= triangles.size()) {
-        return;
-    }
-    triangles[index] = triangle;
-}
+    auto shape = m_redoStack.top();
+    m_redoStack.pop();
 
-void Scene::updateCircle(int index, const Circle& circle) {
-    if (index < 0 || index >= circles.size()) {
-        return;
-    }
-    circles[index] = circle;
+    m_shapes.push_back(shape);
+    m_undoStack.push(shape);
+    std::cout << "[Redo] Shape restored.\n";
 }
 
 void Scene::clear() {
-    points.clear();
-    lines.clear();
-    triangles.clear();
-    circles.clear();
-}
-
-void Scene::clearPoints() {
-    points.clear();
-}
-
-void Scene::clearLines() {
-    lines.clear();
-}
-
-void Scene::clearTriangles() {
-    triangles.clear();
-}
-
-void Scene::clearCircles() {
-    circles.clear();
+    m_shapes.clear();
+    while (!m_undoStack.empty()) m_undoStack.pop();
+    while (!m_redoStack.empty()) m_redoStack.pop();
 }

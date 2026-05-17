@@ -1,34 +1,34 @@
 #pragma once
-#include "graphics/Point.h"
-#include "graphics/Line.h"
-#include "graphics/Triangle.h"
-#include "graphics/Circle.h"
+#include "math/Vec2.h"
+#include <memory>
 #include <vector>
+#include <stack>
+#include <cstdint>
+
+class Shape;
 
 class Scene {
 public:
     Scene();
     ~Scene();
 
-    void addPoint(const Point& point);
-    void addLine(const Line& line);
-    void addTriangle(const Triangle& triangle);
-    void addCircle(const Circle& circle);
+    void addPoint(Vec2 position, uint32_t color);
+    void addLine(Vec2 start, Vec2 end, uint32_t color);
+    void addTriangle(Vec2 p1, Vec2 p2, Vec2 p3, uint32_t color);
+    void addCircle(Vec2 center, float radius, uint32_t color);
+    void addRectangle(Vec2 topLeft, Vec2 bottomRight, uint32_t color);
+    void addSquare(Vec2 topLeft, float sideLength, uint32_t color);
 
-    void updatePoint(int index, const Point& point);
-    void updateLine(int index, const Line& line);
-    void updateTriangle(int index, const Triangle& triangle);
-    void updateCircle(int index, const Circle& circle);
+    void undo();
+    void redo();
 
     void clear();
-    void clearPoints();
-    void clearLines();
-    void clearTriangles();
-    void clearCircles();
-public:
-    std::vector<Point> points;
-    std::vector<Line> lines;
-    std::vector<Triangle> triangles;
-    std::vector<Circle> circles;
 
+    std::vector<std::shared_ptr<Shape>> m_shapes;
+
+private:
+    void pushShape(std::shared_ptr<Shape> shape);
+
+    std::stack<std::shared_ptr<Shape>> m_undoStack;
+    std::stack<std::shared_ptr<Shape>> m_redoStack;
 };

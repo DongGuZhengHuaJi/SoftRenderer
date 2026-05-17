@@ -81,3 +81,15 @@ void Renderer::drawCircle(const Vec2& center, float radius, uint32_t color) {
         }
     }
 }
+
+void Renderer::drawRectangle(const Vec2& topLeft, const Vec2& bottomRight, uint32_t color) {
+    drawLine(topLeft, Vec2(bottomRight.x, topLeft.y), color);
+    drawLine(Vec2(bottomRight.x, topLeft.y), bottomRight, color);
+    drawLine(bottomRight, Vec2(topLeft.x, bottomRight.y), color);
+    drawLine(Vec2(topLeft.x, bottomRight.y), topLeft, color);
+}
+
+void Renderer::drawSquare(const Vec2& topLeft, float sideLength, uint32_t color) {
+    Vec2 bottomRight(topLeft.x + sideLength, topLeft.y + sideLength);
+    drawRectangle(topLeft, bottomRight, color);
+}

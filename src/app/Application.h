@@ -8,7 +8,9 @@ enum class DrawMode {
     Point,
     Line,
     Triangle,
-    Circle
+    Circle,
+    Rectangle,
+    Square
 };
 
 class Application {
@@ -60,6 +62,14 @@ private:
     // Multi-click state for circle (2 clicks)
     bool m_circleFirstClick = true;
     Vec2 m_circleCenter;
+
+    // Multi-click state for rectangle (2 clicks)
+    bool m_rectangleFirstClick = true;
+    Vec2 m_rectangleStart;
+
+    // Multi-click state for square (2 clicks)
+    bool m_squareFirstClick = true;
+    Vec2 m_squareStart;
 
     // Mouse cursor position
     int m_mouseX = 0;
