@@ -3,6 +3,8 @@
 #include "renderer/Renderer.h"
 #include "renderer/FrameBuffer.h"
 #include "scene/Scene.h"
+#include "math/Vec2.h"
+#include <vector>
 
 enum class DrawMode {
     Point,
@@ -11,7 +13,9 @@ enum class DrawMode {
     Circle,
     Rectangle,
     Square,
-    Fill
+    Fill,
+    ClipRect,
+    ClipPolygon
 };
 
 class Application {
@@ -25,6 +29,7 @@ private:
     void update();
     void render();
     void drawScene();
+    void drawClipOverlay();
 
     void handleKeyDown(const SDL_KeyboardEvent& key);
     void handleMouseButtonDown(const SDL_MouseButtonEvent& button);
@@ -33,6 +38,7 @@ private:
     void printHelp() const;
     void printStatus() const;
     const char* drawModeName() const;
+    void resetMultiClick();
 
     uint32_t getNextColor();
 
@@ -72,8 +78,14 @@ private:
     bool m_squareFirstClick = true;
     Vec2 m_squareStart;
 
+    // Multi-click state for clip rectangle (2 clicks)
+    bool m_clipRectFirstClick = true;
+    Vec2 m_clipRectStart;
+
+    // Multi-click state for clip polygon
+    std::vector<Vec2> m_clipVertices;
+
     // Mouse cursor position
     int m_mouseX = 0;
     int m_mouseY = 0;
-
 };

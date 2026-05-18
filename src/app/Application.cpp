@@ -6,6 +6,7 @@
 #include "graphics/Circle.h"
 #include "graphics/Rectangle.h"
 #include "graphics/Square.h"
+#include "graphics/Points.h"
 #include <SDL2/SDL_keycode.h>
 #include <iostream>
 
@@ -80,6 +81,7 @@ void Application::render() {
     m_frameBuffer.clear();
 
     drawScene();
+    drawClipOverlay();
 
     // Show multi-click previews
     if (m_drawMode == DrawMode::Line && !m_lineFirstClick) {
@@ -108,8 +110,18 @@ void Application::render() {
         float tlY = (m_mouseY >= m_squareStart.y) ? m_squareStart.y : m_squareStart.y - sideLength;
         m_renderer.drawSquare(Vec2(tlX, tlY), sideLength, 0x88FFFFFF);
     }
-    else if (m_drawMode == DrawMode::Fill) {
-        // Optional: Show a preview of the fill area (not implemented here)
+    else if (m_drawMode == DrawMode::ClipRect && !m_clipRectFirstClick) {
+        m_renderer.drawRectangle(m_clipRectStart, Vec2(m_mouseX, m_mouseY), 0x8800FF00);
+    }
+    else if (m_drawMode == DrawMode::ClipPolygon) {
+        // Draw preview: existing polygon edges + line to cursor
+        auto& verts = m_clipVertices;
+        for (size_t i = 1; i < verts.size(); i++) {
+            m_renderer.drawLine(verts[i-1], verts[i], 0x8800FF00);
+        }
+        if (!verts.empty()) {
+            m_renderer.drawLine(verts.back(), Vec2(m_mouseX, m_mouseY), 0x8800FF00);
+        }
     }
 
     SDL_UpdateTexture(
@@ -175,62 +187,93 @@ void Application::drawScene() {
     }
 }
 
+void Application::drawClipOverlay() {
+    if (!m_renderer.isClipping()) return;
+
+    // Draw bright outline around the clip region
+    const uint32_t overlayColor = 0xFFFF0000; 
+
+    // Rect clip: draw rectangle outline
+    const Rect& r = m_renderer.getClipRect();
+    m_renderer.drawRectangle(Vec2(r.xMin, r.yMin), Vec2(r.xMax, r.yMax), overlayColor);
+
+    // Polygon clip: draw polygon edges
+    const auto& poly = m_renderer.getClipPolygon();
+    for (size_t i = 0; i < poly.size(); i++) {
+        const Vec2& a = poly[i];
+        const Vec2& b = poly[(i + 1) % poly.size()];
+        m_renderer.drawLine(a, b, overlayColor);
+    }
+}
+
+void Application::resetMultiClick() {
+    m_lineFirstClick = true;
+    m_triangleClicks = 0;
+    m_circleFirstClick = true;
+    m_rectangleFirstClick = true;
+    m_squareFirstClick = true;
+    m_clipRectFirstClick = true;
+    m_clipVertices.clear();
+}
+
 void Application::handleKeyDown(const SDL_KeyboardEvent& key) {
     switch (key.keysym.sym) {
     case SDLK_1:
         m_drawMode = DrawMode::Point;
-        m_lineFirstClick = true;
-        m_triangleClicks = 0;
-        m_circleFirstClick = true;
+        resetMultiClick();
         printStatus();
         break;
     case SDLK_2:
         m_drawMode = DrawMode::Line;
-        m_lineFirstClick = true;
-        m_triangleClicks = 0;
-        m_circleFirstClick = true;
+        resetMultiClick();
         printStatus();
         break;
     case SDLK_3:
         m_drawMode = DrawMode::Triangle;
-        m_lineFirstClick = true;
-        m_triangleClicks = 0;
-        m_circleFirstClick = true;
+        resetMultiClick();
         printStatus();
         break;
     case SDLK_4:
         m_drawMode = DrawMode::Circle;
-        m_lineFirstClick = true;
-        m_triangleClicks = 0;
-        m_circleFirstClick = true;
+        resetMultiClick();
         printStatus();
         break;
     case SDLK_5:
         m_drawMode = DrawMode::Rectangle;
-        m_lineFirstClick = true;
-        m_triangleClicks = 0;
-        m_circleFirstClick = true;
+        resetMultiClick();
         printStatus();
         break;
     case SDLK_6:
         m_drawMode = DrawMode::Square;
-        m_lineFirstClick = true;
-        m_triangleClicks = 0;
-        m_circleFirstClick = true;
+        resetMultiClick();
         printStatus();
         break;
     case SDLK_7:
         m_drawMode = DrawMode::Fill;
-        m_lineFirstClick = true;
-        m_triangleClicks = 0;
-        m_circleFirstClick = true;
+        resetMultiClick();
         printStatus();
+        break;
+    case SDLK_8:
+        m_drawMode = DrawMode::ClipRect;
+        resetMultiClick();
+        m_clipRectFirstClick = true;
+        printStatus();
+        break;
+    case SDLK_9:
+        m_drawMode = DrawMode::ClipPolygon;
+        resetMultiClick();
+        m_clipVertices.clear();
+        printStatus();
+        break;
+    case SDLK_0:
+        m_renderer.clearClip();
+        m_clipVertices.clear();
+        m_clipRectFirstClick = true;
+        std::cout << "[Clip] Clipping cleared.\n";
         break;
     case SDLK_c:
         m_scene.clear();
-        m_lineFirstClick = true;
-        m_triangleClicks = 0;
-        m_circleFirstClick = true;
+        resetMultiClick();
         std::cout << "[Clear] All shapes removed.\n";
         break;
     case SDLK_r:
@@ -247,25 +290,40 @@ void Application::handleKeyDown(const SDL_KeyboardEvent& key) {
         m_scene.redo();
         break;
     case SDLK_ESCAPE:
-        if (!m_lineFirstClick) {
+        if (m_drawMode == DrawMode::ClipPolygon && !m_clipVertices.empty()) {
+            m_clipVertices.clear();
+            std::cout << "[Cancel] Clip polygon cancelled.\n";
+        } else if (!m_lineFirstClick) {
             m_lineFirstClick = true;
             std::cout << "[Cancel] Line drawing cancelled.\n";
         } else if (m_triangleClicks > 0) {
             m_triangleClicks = 0;
             std::cout << "[Cancel] Triangle drawing cancelled.\n";
-        }
-        else if (!m_circleFirstClick) {
+        } else if (!m_circleFirstClick) {
             m_circleFirstClick = true;
             std::cout << "[Cancel] Circle drawing cancelled.\n";
+        } else if (!m_clipRectFirstClick) {
+            m_clipRectFirstClick = true;
+            std::cout << "[Cancel] Clip rectangle cancelled.\n";
         }
         break;
     }
 }
 
 void Application::handleMouseButtonDown(const SDL_MouseButtonEvent& button) {
-    if (button.button != SDL_BUTTON_LEFT) return;
-
     Vec2 pos(button.x, button.y);
+
+    // Right-click: finalize polygon clipping
+    if (button.button == SDL_BUTTON_RIGHT) {
+        if (m_drawMode == DrawMode::ClipPolygon && m_clipVertices.size() >= 3) {
+            m_renderer.setClipPolygon(m_clipVertices);
+            std::cout << "[Clip] Polygon clip set with " << m_clipVertices.size() << " vertices.\n";
+            m_clipVertices.clear();
+        }
+        return;
+    }
+
+    if (button.button != SDL_BUTTON_LEFT) return;
 
     switch (m_drawMode) {
     case DrawMode::Point:
@@ -356,6 +414,27 @@ void Application::handleMouseButtonDown(const SDL_MouseButtonEvent& button) {
         m_scene.Fill(*filledPoints, m_currentColor);
         break;
     }
+    case DrawMode::ClipRect: {
+        if (m_clipRectFirstClick) {
+            m_clipRectStart = pos;
+            m_clipRectFirstClick = false;
+            std::cout << "[ClipRect] First corner at (" << pos.x << ", " << pos.y << "), click opposite corner...\n";
+        } else {
+            Rect rect(m_clipRectStart.x, m_clipRectStart.y, pos.x, pos.y);
+            m_renderer.setClipRect(rect);
+            m_clipRectFirstClick = true;
+            std::cout << "[ClipRect] Set: (" << rect.xMin << "," << rect.yMin
+                      << ")-(" << rect.xMax << "," << rect.yMax << ")\n";
+        }
+        break;
+    }
+    case DrawMode::ClipPolygon: {
+        m_clipVertices.push_back(pos);
+        std::cout << "[ClipPolygon] Vertex " << m_clipVertices.size()
+                  << " at (" << pos.x << ", " << pos.y << "). "
+                  << (m_clipVertices.size() >= 3 ? "Right-click to finish." : "") << "\n";
+        break;
+    }
     }
 }
 
@@ -369,29 +448,37 @@ void Application::printHelp() const {
     std::cout << "=== SoftRenderer - 2D Drawing ===\n";
     std::cout << "  Mouse Click      - Place shape\n";
     std::cout << "  1/2/3/4/5/6/7    - Draw: Point / Line / Triangle / Circle / Rectangle / Square / Fill\n";
+    std::cout << "  8                - Clip: Rectangle mode (2-click)\n";
+    std::cout << "  9                - Clip: Polygon mode (left=vertex, right=finish)\n";
+    std::cout << "  0                - Clear clipping\n";
     std::cout << "  R                - Cycle color\n";
     std::cout << "  C                - Clear all shapes\n";
-    std::cout << "  Q                - Undo last step\n";
-    std::cout << "  E                - Redo last step\n";
-    std::cout << "  ESC              - Cancel current line/triangle/circle\n";
-    std::cout << "  H                - Toggle this HUD\n";
+    std::cout << "  Q / E            - Undo / Redo\n";
+    std::cout << "  ESC              - Cancel current operation\n";
+    std::cout << "  H                - Print this help\n";
     std::cout << "  Close window     - Quit\n";
     std::cout << "================================\n\n";
 }
 
 void Application::printStatus() const {
-    std::cout << "[Mode] " << drawModeName() << "\n";
+    std::cout << "[Mode] " << drawModeName();
+    if (m_renderer.isClipping()) {
+        std::cout << "  [Clip: ON]";
+    }
+    std::cout << "\n";
 }
 
 const char* Application::drawModeName() const {
     switch (m_drawMode) {
-    case DrawMode::Point:    return "Point (1-click)";
-    case DrawMode::Line:     return "Line (2-click)";
-    case DrawMode::Triangle: return "Triangle (3-click)";
-    case DrawMode::Circle:   return "Circle (1-click)";
-    case DrawMode::Rectangle: return "Rectangle (2-click)";
-    case DrawMode::Square:   return "Square (2-click)";
-    case DrawMode::Fill:     return "Fill (1-click)";
+    case DrawMode::Point:       return "Point (1-click)";
+    case DrawMode::Line:        return "Line (2-click)";
+    case DrawMode::Triangle:    return "Triangle (3-click)";
+    case DrawMode::Circle:      return "Circle (2-click)";
+    case DrawMode::Rectangle:   return "Rectangle (2-click)";
+    case DrawMode::Square:      return "Square (2-click)";
+    case DrawMode::Fill:        return "Fill (1-click)";
+    case DrawMode::ClipRect:    return "ClipRect (2-click)";
+    case DrawMode::ClipPolygon: return "ClipPolygon (L-click add, R-click finish)";
     }
     return "Unknown";
 }

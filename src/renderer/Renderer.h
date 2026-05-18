@@ -2,7 +2,8 @@
 #include "renderer/FrameBuffer.h"
 #include "math/Vec2.h"
 #include "graphics/Points.h"
-#include <memory>
+#include "renderer/Clipper.h"
+#include <vector>
 
 class Renderer {
 public:
@@ -18,6 +19,19 @@ public:
     void drawSquare(const Vec2& topLeft, float sideLength, uint32_t color);
 
     void scanlineSeedFill(const Vec2& seedPoint, uint32_t color, Points* filledPoints);
+
+    // Clipping
+    void setClipRect(const Rect& rect);
+    void setClipPolygon(const std::vector<Vec2>& vertices);
+    void clearClip();
+    bool isClipping() const;
+    const Rect& getClipRect() const;
+    const std::vector<Vec2>& getClipPolygon() const;
+
 private:
     FrameBuffer& m_frameBuffer;
+
+    bool          m_clipEnabled = false;
+    Rect          m_clipRect;
+    std::vector<Vec2> m_clipPolygon;
 };
