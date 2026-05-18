@@ -20,6 +20,13 @@ void FrameBuffer::setPixel(int x, int y, uint32_t color) {
     m_pixels[y * m_width + x] = color;
 }
 
+uint32_t FrameBuffer::getPixel(int x, int y) const {
+    if (x < 0 || x >= m_width || y < 0 || y >= m_height) {
+        return 0; // Out of bounds, return default color (black)
+    }
+    return m_pixels[y * m_width + x];
+}
+
 const std::vector<uint32_t>& FrameBuffer::getPixels() const {
     return m_pixels;
 }

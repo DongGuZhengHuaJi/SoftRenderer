@@ -4,6 +4,7 @@
 #include <vector>
 #include <stack>
 #include <cstdint>
+#include "graphics/Points.h"
 
 class Shape;
 
@@ -18,6 +19,8 @@ public:
     void addCircle(Vec2 center, float radius, uint32_t color);
     void addRectangle(Vec2 topLeft, Vec2 bottomRight, uint32_t color);
     void addSquare(Vec2 topLeft, float sideLength, uint32_t color);
+
+    void Fill(Points points, uint32_t color);
 
     void undo();
     void redo();

@@ -10,7 +10,8 @@ enum class DrawMode {
     Triangle,
     Circle,
     Rectangle,
-    Square
+    Square,
+    Fill
 };
 
 class Application {

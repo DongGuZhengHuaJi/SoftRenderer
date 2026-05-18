@@ -11,6 +11,7 @@ public:
     void clear(uint32_t color = 0);
     
     void setPixel(int x, int y, uint32_t color);
+    uint32_t getPixel(int x, int y) const;
 
     const std::vector<uint32_t>& getPixels() const;
 

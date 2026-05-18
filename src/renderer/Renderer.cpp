@@ -1,6 +1,10 @@
+#include "graphics/Points.h"
 #include "renderer/FrameBuffer.h"
+#include "scene/Scene.h"
 #include "renderer/Renderer.h"
 #include <math.h>
+#include <memory>
+#include <queue>
 
 Renderer::Renderer(FrameBuffer &frameBuffer) : m_frameBuffer(frameBuffer) {
 
@@ -92,4 +96,86 @@ void Renderer::drawRectangle(const Vec2& topLeft, const Vec2& bottomRight, uint3
 void Renderer::drawSquare(const Vec2& topLeft, float sideLength, uint32_t color) {
     Vec2 bottomRight(topLeft.x + sideLength, topLeft.y + sideLength);
     drawRectangle(topLeft, bottomRight, color);
+}
+
+void Renderer::scanlineSeedFill(const Vec2& seedPoint, uint32_t color, Points* filledPoints) {
+
+    int seedX = static_cast<int>(seedPoint.x);
+    int seedY = static_cast<int>(seedPoint.y);
+
+    if (seedX < 0 || seedX >= m_frameBuffer.getWidth() ||
+        seedY < 0 || seedY >= m_frameBuffer.getHeight()) {
+        return;
+    }
+
+    uint32_t targetColor = m_frameBuffer.getPixel(seedX, seedY);
+
+    if (targetColor == color) {
+        return;
+    }
+
+    std::queue<Vec2> q;
+    q.push(Vec2(seedX, seedY));
+
+    while (!q.empty()) {
+
+        Vec2 p = q.front();
+        q.pop();
+
+        int x = static_cast<int>(p.x);
+        int y = static_cast<int>(p.y);
+
+        // 如果当前点不是目标颜色，跳过
+        if (m_frameBuffer.getPixel(x, y) != targetColor) {
+            continue;
+        }
+
+        // 1. 找左边界
+        int left = x;
+        while (left >= 0 &&
+               m_frameBuffer.getPixel(left, y) == targetColor) {
+            left--;
+        }
+        left++;
+
+        // 2. 找右边界
+        int right = x;
+        while (right < m_frameBuffer.getWidth() &&
+               m_frameBuffer.getPixel(right, y) == targetColor) {
+            right++;
+        }
+        right--;
+
+        // 3. 填充整条扫描线
+        for (int i = left; i <= right; i++) {
+            drawPixel(Vec2(i, y), color);
+            if (filledPoints) {
+                filledPoints->m_points.emplace_back(Vec2(i, y), color);
+            }
+        }
+
+        // 4. 检查上一行和下一行
+        for (int ny : { y - 1, y + 1 }) {
+
+            if (ny < 0 || ny >= m_frameBuffer.getHeight()) {
+                continue;
+            }
+
+            bool insideSpan = false;
+
+            for (int i = left; i <= right; i++) {
+
+                bool fillable =
+                    m_frameBuffer.getPixel(i, ny) == targetColor;
+
+                if (fillable && !insideSpan) {
+                    q.push(Vec2(i, ny));
+                    insideSpan = true;
+                }
+                else if (!fillable) {
+                    insideSpan = false;
+                }
+            }
+        }
+    }
 }

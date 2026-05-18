@@ -108,6 +108,9 @@ void Application::render() {
         float tlY = (m_mouseY >= m_squareStart.y) ? m_squareStart.y : m_squareStart.y - sideLength;
         m_renderer.drawSquare(Vec2(tlX, tlY), sideLength, 0x88FFFFFF);
     }
+    else if (m_drawMode == DrawMode::Fill) {
+        // Optional: Show a preview of the fill area (not implemented here)
+    }
 
     SDL_UpdateTexture(
         m_texture,
@@ -161,6 +164,13 @@ void Application::drawScene() {
                 m_renderer.drawSquare(s->topLeft, s->sideLength, s->color);
                 break;
             }
+            case 7: { // Fill (Points)
+                auto f = std::static_pointer_cast<Points>(shape);
+                for (const auto& pt : f->m_points) {
+                    m_renderer.drawPixel(pt.position, pt.color);
+                }
+                break;
+            }
         }
     }
 }
@@ -204,6 +214,13 @@ void Application::handleKeyDown(const SDL_KeyboardEvent& key) {
         break;
     case SDLK_6:
         m_drawMode = DrawMode::Square;
+        m_lineFirstClick = true;
+        m_triangleClicks = 0;
+        m_circleFirstClick = true;
+        printStatus();
+        break;
+    case SDLK_7:
+        m_drawMode = DrawMode::Fill;
         m_lineFirstClick = true;
         m_triangleClicks = 0;
         m_circleFirstClick = true;
@@ -333,6 +350,12 @@ void Application::handleMouseButtonDown(const SDL_MouseButtonEvent& button) {
         }
         break;
     }
+    case DrawMode::Fill: {
+        Points* filledPoints = new Points();
+        m_renderer.scanlineSeedFill(pos, m_currentColor, filledPoints);
+        m_scene.Fill(*filledPoints, m_currentColor);
+        break;
+    }
     }
 }
 
@@ -345,7 +368,7 @@ void Application::printHelp() const {
     std::cout << "\n";
     std::cout << "=== SoftRenderer - 2D Drawing ===\n";
     std::cout << "  Mouse Click      - Place shape\n";
-    std::cout << "  1/2/3/4/5/6      - Draw: Point / Line / Triangle / Circle / Rectangle / Square\n";
+    std::cout << "  1/2/3/4/5/6/7    - Draw: Point / Line / Triangle / Circle / Rectangle / Square / Fill\n";
     std::cout << "  R                - Cycle color\n";
     std::cout << "  C                - Clear all shapes\n";
     std::cout << "  Q                - Undo last step\n";
@@ -368,6 +391,7 @@ const char* Application::drawModeName() const {
     case DrawMode::Circle:   return "Circle (1-click)";
     case DrawMode::Rectangle: return "Rectangle (2-click)";
     case DrawMode::Square:   return "Square (2-click)";
+    case DrawMode::Fill:     return "Fill (1-click)";
     }
     return "Unknown";
 }

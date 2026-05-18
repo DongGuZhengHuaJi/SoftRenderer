@@ -47,6 +47,10 @@ void Scene::addSquare(Vec2 topLeft, float sideLength, uint32_t color) {
     pushShape(std::make_shared<Square>(topLeft, sideLength, color));
 }
 
+void Scene::Fill(Points points, uint32_t color) {
+    pushShape(std::make_shared<Points>(points));
+}
+
 void Scene::undo() {
     if (m_undoStack.empty()) {
         std::cout << "[Undo] Nothing to undo.\n";

@@ -1,6 +1,8 @@
 #pragma once
 #include "renderer/FrameBuffer.h"
 #include "math/Vec2.h"
+#include "graphics/Points.h"
+#include <memory>
 
 class Renderer {
 public:
@@ -14,6 +16,8 @@ public:
     void drawCircle(const Vec2& center, float radius, uint32_t color);
     void drawRectangle(const Vec2& topLeft, const Vec2& bottomRight, uint32_t color);
     void drawSquare(const Vec2& topLeft, float sideLength, uint32_t color);
+
+    void scanlineSeedFill(const Vec2& seedPoint, uint32_t color, Points* filledPoints);
 private:
     FrameBuffer& m_frameBuffer;
 };
