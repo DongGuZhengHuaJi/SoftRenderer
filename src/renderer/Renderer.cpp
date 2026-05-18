@@ -1,9 +1,9 @@
 #include "graphics/Points.h"
 #include "renderer/FrameBuffer.h"
-#include "scene/Scene.h"
 #include "renderer/Renderer.h"
+#include "renderer/Clipper.h"
+#include "config.h"
 #include <math.h>
-#include <memory>
 #include <queue>
 
 Renderer::Renderer(FrameBuffer &frameBuffer) : m_frameBuffer(frameBuffer) {
@@ -16,46 +16,56 @@ void Renderer::clear() {
     m_frameBuffer.clear(0xFF000000);
 }
 
-void Renderer::drawPixel(const Vec2& point, uint32_t color) {
-    int px = static_cast<int>(point.x);
-    int py = static_cast<int>(point.y);
+Vec2 Renderer::worldToScreen(const Vec2& world) const {
+    return Vec2(world.x + APP_WIDTH * 0.5f, APP_HEIGHT * 0.5f - world.y);
+}
 
-    if (m_clipEnabled) {
-        // Rect bounds check
-        if (px < m_clipRect.xMin || px > m_clipRect.xMax ||
-            py < m_clipRect.yMin || py > m_clipRect.yMax) {
-            return;
-        }
-        // Polygon inside-test (even-odd rule)
-        if (!m_clipPolygon.empty()) {
-            bool inside = false;
-            size_t n = m_clipPolygon.size();
-            for (size_t i = 0, j = n - 1; i < n; j = i++) {
-                float xi = m_clipPolygon[i].x, yi = m_clipPolygon[i].y;
-                float xj = m_clipPolygon[j].x, yj = m_clipPolygon[j].y;
-                if (((yi > py) != (yj > py)) &&
-                    (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
-                    inside = !inside;
-                }
-            }
-            if (!inside) return;
-        }
+Vec2 Renderer::screenToWorld(const Vec2& screen) const {
+    return Vec2(screen.x - APP_WIDTH * 0.5f, APP_HEIGHT * 0.5f - screen.y);
+}
+
+bool Renderer::drawPixelScreen(int x, int y, uint32_t color) {
+    if (!isInsideClip(x, y)) {
+        return false;
     }
+    m_frameBuffer.setPixel(x, y, color);
+    return true;
+}
 
-    m_frameBuffer.setPixel(px, py, color);
+bool Renderer::isInsideClip(int x, int y) const {
+    if (!m_clipEnabled) return true;
+    if (x < m_clipRect.xMin || x > m_clipRect.xMax ||
+        y < m_clipRect.yMin || y > m_clipRect.yMax) {
+        return false;
+    }
+    if (!m_clipPolygon.empty()) {
+        bool inside = false;
+        size_t n = m_clipPolygon.size();
+        for (size_t i = 0, j = n - 1; i < n; j = i++) {
+            float xi = m_clipPolygon[i].x, yi = m_clipPolygon[i].y;
+            float xj = m_clipPolygon[j].x, yj = m_clipPolygon[j].y;
+            if (((yi > y) != (yj > y)) &&
+                (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+                inside = !inside;
+            }
+        }
+        if (!inside) return false;
+    }
+    return true;
+}
+
+void Renderer::drawPixel(const Vec2& point, uint32_t color) {
+    Vec2 screen = worldToScreen(point);
+    drawPixelScreen(static_cast<int>(screen.x), static_cast<int>(screen.y), color);
 }
 
 void Renderer::drawLine(const Vec2& start, const Vec2& end, uint32_t color) {
-    Vec2 a = start;
-    Vec2 b = end;
-    bool perPixelClip = false;
+    Vec2 a = worldToScreen(start);
+    Vec2 b = worldToScreen(end);
 
     if (m_clipEnabled) {
         if (!Clipper::clipLine(a, b, m_clipRect)) {
             return;
-        }
-        if (!m_clipPolygon.empty()) {
-            perPixelClip = true;
         }
     }
 
@@ -71,27 +81,19 @@ void Renderer::drawLine(const Vec2& start, const Vec2& end, uint32_t color) {
     int err = dx - dy;
 
     while (true) {
-        bool draw = true;
-        if (perPixelClip) {
-            draw = false;
-            int px = x0, py = y0;
-            size_t n = m_clipPolygon.size();
-            for (size_t i = 0, j = n - 1; i < n; j = i++) {
-                float xi = m_clipPolygon[i].x, yi = m_clipPolygon[i].y;
-                float xj = m_clipPolygon[j].x, yj = m_clipPolygon[j].y;
-                if (((yi > py) != (yj > py)) &&
-                    (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
-                    draw = !draw;
-                }
-            }
-        }
-        if (draw) {
-            drawPixel(Vec2(x0, y0), color);
-        }
+        drawPixelScreen(x0, y0, color);
+
         if (x0 == x1 && y0 == y1) break;
+
         int e2 = 2 * err;
-        if (e2 > -dy) { err -= dy; x0 += sx; }
-        if (e2 < dx)  { err += dx; y0 += sy; }
+        if (e2 > -dy) {
+            err -= dy;
+            x0 += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y0 += sy;
+        }
     }
 }
 
@@ -102,8 +104,9 @@ void Renderer::drawTriangle(const Vec2& v0, const Vec2& v1, const Vec2& v2, uint
 }
 
 void Renderer::drawCircle(const Vec2& center, float radius, uint32_t color) {
-    int x0 = static_cast<int>(center.x);
-    int y0 = static_cast<int>(center.y);
+    Vec2 screenCenter = worldToScreen(center);
+    int x0 = static_cast<int>(screenCenter.x);
+    int y0 = static_cast<int>(screenCenter.y);
     int r = static_cast<int>(radius);
 
     int x = r;
@@ -118,7 +121,7 @@ void Renderer::drawCircle(const Vec2& center, float radius, uint32_t color) {
             {x0 + y, y0 - x}, {x0 + x, y0 - y}
         };
         for (auto& pt : symPts) {
-            drawPixel(Vec2(pt[0], pt[1]), color);
+            drawPixelScreen(pt[0], pt[1], color);
         }
 
         if (err <= 0) {
@@ -143,12 +146,24 @@ void Renderer::drawSquare(const Vec2& topLeft, float sideLength, uint32_t color)
     drawRectangle(topLeft, bottomRight, color);
 }
 
+void Renderer::drawQuad(const Vec2& v0, const Vec2& v1, const Vec2& v2, const Vec2& v3, uint32_t color) {
+    drawLine(v0, v1, color);
+    drawLine(v1, v2, color);
+    drawLine(v2, v3, color);
+    drawLine(v3, v0, color);
+}
+
 void Renderer::scanlineSeedFill(const Vec2& seedPoint, uint32_t color, Points* filledPoints) {
-    int seedX = static_cast<int>(seedPoint.x);
-    int seedY = static_cast<int>(seedPoint.y);
+    Vec2 screenSeed = worldToScreen(seedPoint);
+    int seedX = static_cast<int>(screenSeed.x);
+    int seedY = static_cast<int>(screenSeed.y);
 
     if (seedX < 0 || seedX >= m_frameBuffer.getWidth() ||
         seedY < 0 || seedY >= m_frameBuffer.getHeight()) {
+        return;
+    }
+
+    if (!isInsideClip(seedX, seedY)) {
         return;
     }
 
@@ -171,25 +186,27 @@ void Renderer::scanlineSeedFill(const Vec2& seedPoint, uint32_t color, Points* f
         if (m_frameBuffer.getPixel(x, y) != targetColor) {
             continue;
         }
+        if (!isInsideClip(x, y)) {
+            continue;
+        }
 
         int left = x;
-        while (left >= 0 &&
-               m_frameBuffer.getPixel(left, y) == targetColor) {
+        while (left >= 0 && m_frameBuffer.getPixel(left, y) == targetColor && isInsideClip(left, y)) {
             left--;
         }
         left++;
 
         int right = x;
-        while (right < m_frameBuffer.getWidth() &&
-               m_frameBuffer.getPixel(right, y) == targetColor) {
+        while (right < m_frameBuffer.getWidth() && m_frameBuffer.getPixel(right, y) == targetColor && isInsideClip(right, y)) {
             right++;
         }
         right--;
 
         for (int i = left; i <= right; i++) {
-            drawPixel(Vec2(i, y), color);
+            drawPixelScreen(i, y, color);
             if (filledPoints) {
-                filledPoints->m_points.emplace_back(Vec2(i, y), color);
+                Vec2 worldPt = screenToWorld(Vec2(i, y));
+                filledPoints->m_points.emplace_back(worldPt, color);
             }
         }
 
@@ -199,8 +216,7 @@ void Renderer::scanlineSeedFill(const Vec2& seedPoint, uint32_t color, Points* f
             }
             bool insideSpan = false;
             for (int i = left; i <= right; i++) {
-                bool fillable =
-                    m_frameBuffer.getPixel(i, ny) == targetColor;
+                bool fillable = m_frameBuffer.getPixel(i, ny) == targetColor && isInsideClip(i, ny);
                 if (fillable && !insideSpan) {
                     q.push(Vec2(i, ny));
                     insideSpan = true;

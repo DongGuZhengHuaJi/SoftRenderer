@@ -17,7 +17,6 @@ Scene::~Scene() {
 void Scene::pushShape(std::shared_ptr<Shape> shape) {
     m_shapes.push_back(shape);
     m_undoStack.push(shape);
-    // Clear redo stack on new action
     while (!m_redoStack.empty()) {
         m_redoStack.pop();
     }
@@ -61,7 +60,6 @@ void Scene::undo() {
     m_undoStack.pop();
     m_redoStack.push(shape);
 
-    // Remove last matching shape from m_shapes
     for (auto it = m_shapes.rbegin(); it != m_shapes.rend(); ++it) {
         if (*it == shape) {
             m_shapes.erase(std::next(it).base());
@@ -89,4 +87,61 @@ void Scene::clear() {
     m_shapes.clear();
     while (!m_undoStack.empty()) m_undoStack.pop();
     while (!m_redoStack.empty()) m_redoStack.pop();
+}
+
+void Scene::transformAll(const Mat3& matrix) {
+    // Approximate uniform scale factor for radius adjustment
+    float scaleX = std::sqrt(matrix.m[0] * matrix.m[0] + matrix.m[1] * matrix.m[1]);
+    float scaleY = std::sqrt(matrix.m[3] * matrix.m[3] + matrix.m[4] * matrix.m[4]);
+    float avgScale = (scaleX + scaleY) * 0.5f;
+
+    for (auto& shape : m_shapes) {
+        switch (shape->getType()) {
+        case 1: { // Point
+            auto p = std::static_pointer_cast<Point>(shape);
+            p->position = matrix.transform(p->position);
+            break;
+        }
+        case 2: { // Line
+            auto l = std::static_pointer_cast<Line>(shape);
+            l->start = matrix.transform(l->start);
+            l->end   = matrix.transform(l->end);
+            break;
+        }
+        case 3: { // Triangle
+            auto t = std::static_pointer_cast<Triangle>(shape);
+            t->v0 = matrix.transform(t->v0);
+            t->v1 = matrix.transform(t->v1);
+            t->v2 = matrix.transform(t->v2);
+            break;
+        }
+        case 4: { // Circle
+            auto c = std::static_pointer_cast<Circle>(shape);
+            c->center = matrix.transform(c->center);
+            c->radius *= avgScale;
+            break;
+        }
+        case 5: { // Rectangle
+            auto r = std::static_pointer_cast<Rectangle>(shape);
+            for (int i = 0; i < 4; i++) {
+                r->v[i] = matrix.transform(r->v[i]);
+            }
+            break;
+        }
+        case 6: { // Square
+            auto s = std::static_pointer_cast<Square>(shape);
+            for (int i = 0; i < 4; i++) {
+                s->v[i] = matrix.transform(s->v[i]);
+            }
+            break;
+        }
+        case 7: { // Points (fill)
+            auto pts = std::static_pointer_cast<Points>(shape);
+            for (auto& pt : pts->m_points) {
+                pt.position = matrix.transform(pt.position);
+            }
+            break;
+        }
+        }
+    }
 }

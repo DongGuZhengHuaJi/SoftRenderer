@@ -5,12 +5,9 @@
 class Clipper {
 public:
     // --- Line clipping (Cohen-Sutherland) ---
-    // Returns true if any visible segment remains; a,b modified in-place.
     static bool clipLine(Vec2& a, Vec2& b, const Rect& rect);
 
     // --- Polygon clipping (Sutherland-Hodgman) ---
-    // Clips subject polygon against a convex clip polygon.
-    // The clip polygon vertices are expected in clockwise or counter-clockwise order.
     static std::vector<Vec2> clipPolygon(
         const std::vector<Vec2>& subject,
         const std::vector<Vec2>& clipPoly);

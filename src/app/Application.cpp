@@ -83,44 +83,51 @@ void Application::render() {
     drawScene();
     drawClipOverlay();
 
+    Vec2 mouseWorld = m_renderer.screenToWorld(Vec2(m_mouseX, m_mouseY));
+
     // Show multi-click previews
     if (m_drawMode == DrawMode::Line && !m_lineFirstClick) {
-        m_renderer.drawLine(m_lineStart, Vec2(m_mouseX, m_mouseY), 0x88FFFFFF);
+        m_renderer.drawLine(m_lineStart, mouseWorld, 0x88FFFFFF);
     }
     else if (m_drawMode == DrawMode::Triangle) {
         if (m_triangleClicks == 1) {
-            m_renderer.drawLine(m_triangleVertices[0], Vec2(m_mouseX, m_mouseY), 0x88FFFFFF);
+            m_renderer.drawLine(m_triangleVertices[0], mouseWorld, 0x88FFFFFF);
         } else if (m_triangleClicks == 2) {
             m_renderer.drawLine(m_triangleVertices[0], m_triangleVertices[1], 0x88FFFFFF);
-            m_renderer.drawLine(m_triangleVertices[1], Vec2(m_mouseX, m_mouseY), 0x88FFFFFF);
-            m_renderer.drawLine(Vec2(m_mouseX, m_mouseY), m_triangleVertices[0], 0x88FFFFFF);
+            m_renderer.drawLine(m_triangleVertices[1], mouseWorld, 0x88FFFFFF);
+            m_renderer.drawLine(mouseWorld, m_triangleVertices[0], 0x88FFFFFF);
         }
     }
     else if (m_drawMode == DrawMode::Circle && !m_circleFirstClick) {
-        float radius = sqrtf((m_mouseX - m_circleCenter.x) * (m_mouseX - m_circleCenter.x) +
-                             (m_mouseY - m_circleCenter.y) * (m_mouseY - m_circleCenter.y));
+        float radius = sqrtf((mouseWorld.x - m_circleCenter.x) * (mouseWorld.x - m_circleCenter.x) +
+                             (mouseWorld.y - m_circleCenter.y) * (mouseWorld.y - m_circleCenter.y));
         m_renderer.drawCircle(m_circleCenter, radius, 0x88FFFFFF);
     }
     else if (m_drawMode == DrawMode::Rectangle && !m_rectangleFirstClick) {
-        m_renderer.drawRectangle(m_rectangleStart, Vec2(m_mouseX, m_mouseY), 0x88FFFFFF);
+        m_renderer.drawRectangle(m_rectangleStart, mouseWorld, 0x88FFFFFF);
     }
     else if (m_drawMode == DrawMode::Square && !m_squareFirstClick) {
-        float sideLength = std::max(std::abs(m_mouseX - m_squareStart.x), std::abs(m_mouseY - m_squareStart.y));
-        float tlX = (m_mouseX >= m_squareStart.x) ? m_squareStart.x : m_squareStart.x - sideLength;
-        float tlY = (m_mouseY >= m_squareStart.y) ? m_squareStart.y : m_squareStart.y - sideLength;
+        float sideLength = std::max(std::abs(mouseWorld.x - m_squareStart.x), std::abs(mouseWorld.y - m_squareStart.y));
+        float tlX = (mouseWorld.x >= m_squareStart.x) ? m_squareStart.x : m_squareStart.x - sideLength;
+        float tlY = (mouseWorld.y >= m_squareStart.y) ? m_squareStart.y : m_squareStart.y - sideLength;
         m_renderer.drawSquare(Vec2(tlX, tlY), sideLength, 0x88FFFFFF);
     }
     else if (m_drawMode == DrawMode::ClipRect && !m_clipRectFirstClick) {
-        m_renderer.drawRectangle(m_clipRectStart, Vec2(m_mouseX, m_mouseY), 0x8800FF00);
+        Vec2 clipStartWorld = m_renderer.screenToWorld(m_clipRectStart);
+        m_renderer.drawRectangle(clipStartWorld, mouseWorld, 0x8800FF00);
     }
     else if (m_drawMode == DrawMode::ClipPolygon) {
         // Draw preview: existing polygon edges + line to cursor
+        // m_clipVertices are in screen space, convert to world for drawing
         auto& verts = m_clipVertices;
         for (size_t i = 1; i < verts.size(); i++) {
-            m_renderer.drawLine(verts[i-1], verts[i], 0x8800FF00);
+            Vec2 a = m_renderer.screenToWorld(verts[i-1]);
+            Vec2 b = m_renderer.screenToWorld(verts[i]);
+            m_renderer.drawLine(a, b, 0x8800FF00);
         }
         if (!verts.empty()) {
-            m_renderer.drawLine(verts.back(), Vec2(m_mouseX, m_mouseY), 0x8800FF00);
+            Vec2 last = m_renderer.screenToWorld(verts.back());
+            m_renderer.drawLine(last, mouseWorld, 0x8800FF00);
         }
     }
 
@@ -168,12 +175,12 @@ void Application::drawScene() {
             }
             case 5: { // Rectangle
                 auto r = std::static_pointer_cast<Rectangle>(shape);
-                m_renderer.drawRectangle(r->topLeft, r->bottomRight, r->color);
+                m_renderer.drawQuad(r->v[0], r->v[1], r->v[2], r->v[3], r->color);
                 break;
             }
             case 6: { // Square
                 auto s = std::static_pointer_cast<Square>(shape);
-                m_renderer.drawSquare(s->topLeft, s->sideLength, s->color);
+                m_renderer.drawQuad(s->v[0], s->v[1], s->v[2], s->v[3], s->color);
                 break;
             }
             case 7: { // Fill (Points)
@@ -190,18 +197,19 @@ void Application::drawScene() {
 void Application::drawClipOverlay() {
     if (!m_renderer.isClipping()) return;
 
-    // Draw bright outline around the clip region
-    const uint32_t overlayColor = 0xFFFF0000; 
+    const uint32_t overlayColor = 0xFFFF0000;
 
-    // Rect clip: draw rectangle outline
+    // Rect clip: draw rectangle outline (clip stored in screen space, convert to world)
     const Rect& r = m_renderer.getClipRect();
-    m_renderer.drawRectangle(Vec2(r.xMin, r.yMin), Vec2(r.xMax, r.yMax), overlayColor);
+    Vec2 tl = m_renderer.screenToWorld(Vec2(r.xMin, r.yMin));
+    Vec2 br = m_renderer.screenToWorld(Vec2(r.xMax, r.yMax));
+    m_renderer.drawRectangle(tl, br, overlayColor);
 
-    // Polygon clip: draw polygon edges
+    // Polygon clip: draw polygon edges (clip stored in screen space, convert to world)
     const auto& poly = m_renderer.getClipPolygon();
     for (size_t i = 0; i < poly.size(); i++) {
-        const Vec2& a = poly[i];
-        const Vec2& b = poly[(i + 1) % poly.size()];
+        Vec2 a = m_renderer.screenToWorld(poly[i]);
+        Vec2 b = m_renderer.screenToWorld(poly[(i + 1) % poly.size()]);
         m_renderer.drawLine(a, b, overlayColor);
     }
 }
@@ -289,6 +297,55 @@ void Application::handleKeyDown(const SDL_KeyboardEvent& key) {
     case SDLK_e:
         m_scene.redo();
         break;
+    // --- Transforms (apply to all shapes) ---
+    case SDLK_UP:
+        m_scene.transformAll(Mat3::translate(0, 10));
+        std::cout << "[Transform] Translate (0, 10)\n";
+        break;
+    case SDLK_DOWN:
+        m_scene.transformAll(Mat3::translate(0, -10));
+        std::cout << "[Transform] Translate (0, -10)\n";
+        break;
+    case SDLK_LEFT:
+        m_scene.transformAll(Mat3::translate(-10, 0));
+        std::cout << "[Transform] Translate (-10, 0)\n";
+        break;
+    case SDLK_RIGHT:
+        m_scene.transformAll(Mat3::translate(10, 0));
+        std::cout << "[Transform] Translate (10, 0)\n";
+        break;
+    case SDLK_t:
+        m_scene.transformAll(Mat3::scale(1.1f, 1.1f));
+        std::cout << "[Transform] Scale 1.1x\n";
+        break;
+    case SDLK_g:
+        m_scene.transformAll(Mat3::scale(0.9f, 0.9f));
+        std::cout << "[Transform] Scale 0.9x\n";
+        break;
+    case SDLK_z:
+        m_scene.transformAll(Mat3::rotate(-15.0f * 3.14159265f / 180.0f));
+        std::cout << "[Transform] Rotate -15 deg\n";
+        break;
+    case SDLK_x:
+        m_scene.transformAll(Mat3::rotate(15.0f * 3.14159265f / 180.0f));
+        std::cout << "[Transform] Rotate +15 deg\n";
+        break;
+    case SDLK_f:
+        m_scene.transformAll(Mat3::reflectX());
+        std::cout << "[Transform] Reflect X\n";
+        break;
+    case SDLK_v:
+        m_scene.transformAll(Mat3::reflectY());
+        std::cout << "[Transform] Reflect Y\n";
+        break;
+    case SDLK_b:
+        m_scene.transformAll(Mat3::shear(0.15f, 0));
+        std::cout << "[Transform] Shear X +0.15\n";
+        break;
+    case SDLK_n:
+        m_scene.transformAll(Mat3::shear(-0.15f, 0));
+        std::cout << "[Transform] Shear X -0.15\n";
+        break;
     case SDLK_ESCAPE:
         if (m_drawMode == DrawMode::ClipPolygon && !m_clipVertices.empty()) {
             m_clipVertices.clear();
@@ -311,7 +368,8 @@ void Application::handleKeyDown(const SDL_KeyboardEvent& key) {
 }
 
 void Application::handleMouseButtonDown(const SDL_MouseButtonEvent& button) {
-    Vec2 pos(button.x, button.y);
+    Vec2 pos(button.x, button.y);       // screen coords (for clip)
+    Vec2 worldPos = m_renderer.screenToWorld(pos);  // world coords (for shapes)
 
     // Right-click: finalize polygon clipping
     if (button.button == SDL_BUTTON_RIGHT) {
@@ -327,94 +385,95 @@ void Application::handleMouseButtonDown(const SDL_MouseButtonEvent& button) {
 
     switch (m_drawMode) {
     case DrawMode::Point:
-        m_scene.addPoint(pos, m_currentColor);
-        std::cout << "[Draw] Point at (" << pos.x << ", " << pos.y << ")\n";
+        m_scene.addPoint(worldPos, m_currentColor);
+        std::cout << "[Draw] Point at (" << worldPos.x << ", " << worldPos.y << ")\n";
         break;
 
     case DrawMode::Line:
         if (m_lineFirstClick) {
-            m_lineStart = pos;
+            m_lineStart = worldPos;
             m_lineFirstClick = false;
-            std::cout << "[Line] Start at (" << pos.x << ", " << pos.y << "), click end point...\n";
+            std::cout << "[Line] Start at (" << worldPos.x << ", " << worldPos.y << "), click end point...\n";
         } else {
-            m_scene.addLine(m_lineStart, pos, m_currentColor);
+            m_scene.addLine(m_lineStart, worldPos, m_currentColor);
             m_lineFirstClick = true;
-            std::cout << "[Line] End at (" << pos.x << ", " << pos.y << ")\n";
+            std::cout << "[Line] End at (" << worldPos.x << ", " << worldPos.y << ")\n";
         }
         break;
 
     case DrawMode::Triangle:
         if (m_triangleClicks == 0) {
-            m_triangleVertices[0] = pos;
+            m_triangleVertices[0] = worldPos;
             m_triangleClicks = 1;
-            std::cout << "[Triangle] V1 at (" << pos.x << ", " << pos.y << "), click V2...\n";
+            std::cout << "[Triangle] V1 at (" << worldPos.x << ", " << worldPos.y << "), click V2...\n";
         } else if (m_triangleClicks == 1) {
-            m_triangleVertices[1] = pos;
+            m_triangleVertices[1] = worldPos;
             m_triangleClicks = 2;
-            std::cout << "[Triangle] V2 at (" << pos.x << ", " << pos.y << "), click V3...\n";
+            std::cout << "[Triangle] V2 at (" << worldPos.x << ", " << worldPos.y << "), click V3...\n";
         } else {
-            m_scene.addTriangle(m_triangleVertices[0], m_triangleVertices[1], pos, m_currentColor);
+            m_scene.addTriangle(m_triangleVertices[0], m_triangleVertices[1], worldPos, m_currentColor);
             m_triangleClicks = 0;
-            std::cout << "[Triangle] V3 at (" << pos.x << ", " << pos.y << ")\n";
+            std::cout << "[Triangle] V3 at (" << worldPos.x << ", " << worldPos.y << ")\n";
         }
         break;
 
     case DrawMode::Circle: {
         if (m_circleFirstClick) {
-            m_circleCenter = pos;
+            m_circleCenter = worldPos;
             m_circleFirstClick = false;
-            std::cout << "[Circle] Center at (" << pos.x << ", " << pos.y << "), click radius point...\n";
+            std::cout << "[Circle] Center at (" << worldPos.x << ", " << worldPos.y << "), click radius point...\n";
         } else {
-            float radius = sqrtf((pos.x - m_circleCenter.x) * (pos.x - m_circleCenter.x) +
-                                 (pos.y - m_circleCenter.y) * (pos.y - m_circleCenter.y));
+            float radius = sqrtf((worldPos.x - m_circleCenter.x) * (worldPos.x - m_circleCenter.x) +
+                                 (worldPos.y - m_circleCenter.y) * (worldPos.y - m_circleCenter.y));
             m_scene.addCircle(m_circleCenter, radius, m_currentColor);
             m_circleFirstClick = true;
-            std::cout << "[Draw] Circle at (" << pos.x << ", " << pos.y << ") r=" << radius << "\n";
+            std::cout << "[Draw] Circle r=" << radius << "\n";
         }
         break;
     }
     case DrawMode::Rectangle: {
         if (m_rectangleFirstClick) {
-            m_rectangleStart = pos;
+            m_rectangleStart = worldPos;
             m_rectangleFirstClick = false;
-            std::cout << "[Rectangle] Start at (" << pos.x << ", " << pos.y << "), click opposite corner...\n";
+            std::cout << "[Rectangle] Start at (" << worldPos.x << ", " << worldPos.y << "), click opposite corner...\n";
         } else {
             Vec2 topLeft(
-                std::min(m_rectangleStart.x, pos.x),
-                std::min(m_rectangleStart.y, pos.y)
+                std::min(m_rectangleStart.x, worldPos.x),
+                std::min(m_rectangleStart.y, worldPos.y)
             );
             Vec2 bottomRight(
-                std::max(m_rectangleStart.x, pos.x),
-                std::max(m_rectangleStart.y, pos.y)
+                std::max(m_rectangleStart.x, worldPos.x),
+                std::max(m_rectangleStart.y, worldPos.y)
             );
             m_scene.addRectangle(topLeft, bottomRight, m_currentColor);
             m_rectangleFirstClick = true;
-            std::cout << "[Rectangle] End at (" << pos.x << ", " << pos.y << ")\n";
+            std::cout << "[Rectangle] End at (" << worldPos.x << ", " << worldPos.y << ")\n";
         }
         break;
     }
     case DrawMode::Square: {
         if (m_squareFirstClick) {
-            m_squareStart = pos;
+            m_squareStart = worldPos;
             m_squareFirstClick = false;
-            std::cout << "[Square] Start at (" << pos.x << ", " << pos.y << "), click opposite corner...\n";
+            std::cout << "[Square] Start at (" << worldPos.x << ", " << worldPos.y << "), click opposite corner...\n";
         } else {
-            float sideLength = std::max(std::abs(pos.x - m_squareStart.x), std::abs(pos.y - m_squareStart.y));
-            float tlX = (pos.x >= m_squareStart.x) ? m_squareStart.x : m_squareStart.x - sideLength;
-            float tlY = (pos.y >= m_squareStart.y) ? m_squareStart.y : m_squareStart.y - sideLength;
+            float sideLength = std::max(std::abs(worldPos.x - m_squareStart.x), std::abs(worldPos.y - m_squareStart.y));
+            float tlX = (worldPos.x >= m_squareStart.x) ? m_squareStart.x : m_squareStart.x - sideLength;
+            float tlY = (worldPos.y >= m_squareStart.y) ? m_squareStart.y : m_squareStart.y - sideLength;
             m_scene.addSquare(Vec2(tlX, tlY), sideLength, m_currentColor);
             m_squareFirstClick = true;
-            std::cout << "[Square] End at (" << pos.x << ", " << pos.y << ") side=" << sideLength << "\n";
+            std::cout << "[Square] side=" << sideLength << "\n";
         }
         break;
     }
     case DrawMode::Fill: {
         Points* filledPoints = new Points();
-        m_renderer.scanlineSeedFill(pos, m_currentColor, filledPoints);
+        m_renderer.scanlineSeedFill(worldPos, m_currentColor, filledPoints);
         m_scene.Fill(*filledPoints, m_currentColor);
         break;
     }
     case DrawMode::ClipRect: {
+        // Clip is viewport-space — keep screen coords
         if (m_clipRectFirstClick) {
             m_clipRectStart = pos;
             m_clipRectFirstClick = false;
@@ -429,6 +488,7 @@ void Application::handleMouseButtonDown(const SDL_MouseButtonEvent& button) {
         break;
     }
     case DrawMode::ClipPolygon: {
+        // Clip is viewport-space — keep screen coords
         m_clipVertices.push_back(pos);
         std::cout << "[ClipPolygon] Vertex " << m_clipVertices.size()
                   << " at (" << pos.x << ", " << pos.y << "). "
@@ -454,6 +514,11 @@ void Application::printHelp() const {
     std::cout << "  R                - Cycle color\n";
     std::cout << "  C                - Clear all shapes\n";
     std::cout << "  Q / E            - Undo / Redo\n";
+    std::cout << "  Arrow keys       - Translate all shapes\n";
+    std::cout << "  T / G            - Scale up/down all shapes\n";
+    std::cout << "  Z / X            - Rotate left/right all shapes\n";
+    std::cout << "  F / V            - Reflect X / Y all shapes\n";
+    std::cout << "  B / N            - Shear X +/- all shapes\n";
     std::cout << "  ESC              - Cancel current operation\n";
     std::cout << "  H                - Print this help\n";
     std::cout << "  Close window     - Quit\n";

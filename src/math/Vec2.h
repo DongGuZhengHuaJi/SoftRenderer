@@ -32,3 +32,84 @@ struct Rect {
         return p.x >= xMin && p.x <= xMax && p.y >= yMin && p.y <= yMax;
     }
 };
+
+// 3x3 matrix for 2D affine transforms (column-major storage).
+// Indices:
+//   | m[0] m[3] m[6] |   | m00 m01 m02 |
+//   | m[1] m[4] m[7] | = | m10 m11 m12 |
+//   | m[2] m[5] m[8] |   |  0   0   1  |
+struct Mat3 {
+    float m[9];
+
+    Mat3() {
+        m[0]=1; m[1]=0; m[2]=0;
+        m[3]=0; m[4]=1; m[5]=0;
+        m[6]=0; m[7]=0; m[8]=1;
+    }
+
+    static Mat3 identity() { return Mat3(); }
+
+    static Mat3 translate(float tx, float ty) {
+        Mat3 r;
+        r.m[6] = tx;
+        r.m[7] = ty;
+        return r;
+    }
+
+    static Mat3 scale(float sx, float sy) {
+        Mat3 r;
+        r.m[0] = sx;
+        r.m[4] = sy;
+        return r;
+    }
+
+    static Mat3 rotate(float radians) {
+        Mat3 r;
+        float c = std::cos(radians);
+        float s = std::sin(radians);
+        r.m[0] = c;  r.m[3] = -s;
+        r.m[1] = s;  r.m[4] =  c;
+        return r;
+    }
+
+    static Mat3 reflectX() {
+        Mat3 r;
+        r.m[0] =  1;
+        r.m[4] = -1;
+        return r;
+    }
+
+    static Mat3 reflectY() {
+        Mat3 r;
+        r.m[0] = -1;
+        r.m[4] =  1;
+        return r;
+    }
+
+    static Mat3 shear(float shx, float shy) {
+        Mat3 r;
+        r.m[3] = shx;  // m01
+        r.m[1] = shy;  // m10
+        return r;
+    }
+
+    Mat3 operator*(const Mat3& o) const {
+        Mat3 r;
+        for (int col = 0; col < 3; col++) {
+            int ci = col * 3;
+            for (int row = 0; row < 3; row++) {
+                r.m[ci + row] =
+                    m[0 + row] * o.m[ci + 0] +
+                    m[3 + row] * o.m[ci + 1] +
+                    m[6 + row] * o.m[ci + 2];
+            }
+        }
+        return r;
+    }
+
+    Vec2 transform(const Vec2& v) const {
+        float x = m[0] * v.x + m[3] * v.y + m[6];
+        float y = m[1] * v.x + m[4] * v.y + m[7];
+        return Vec2(x, y);
+    }
+};

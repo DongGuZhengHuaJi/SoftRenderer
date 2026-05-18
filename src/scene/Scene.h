@@ -1,10 +1,10 @@
 #pragma once
 #include "math/Vec2.h"
+#include "graphics/Points.h"
 #include <memory>
 #include <vector>
 #include <stack>
 #include <cstdint>
-#include "graphics/Points.h"
 
 class Shape;
 
@@ -26,6 +26,9 @@ public:
     void redo();
 
     void clear();
+
+    // Apply a 2D affine transform to all shapes in place
+    void transformAll(const Mat3& matrix);
 
     std::vector<std::shared_ptr<Shape>> m_shapes;
 
