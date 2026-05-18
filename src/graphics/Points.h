@@ -6,7 +6,10 @@
 class Points : public Shape {
 public:
     std::vector<Point> m_points;
-    Points() : Shape(7) {}
-    Points(const std::vector<Point>& points) : Shape(7),m_points(points) {}
-    virtual ~Points() {};
+    Points() = default;
+    Points(const std::vector<Point>& points) : m_points(points) {}
+    ~Points() override = default;
+
+    void draw(Renderer& renderer) const override;
+    void transform(const Mat3& matrix) override;
 };

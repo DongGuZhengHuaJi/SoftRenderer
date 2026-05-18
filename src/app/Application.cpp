@@ -9,10 +9,35 @@
 #include "graphics/Points.h"
 #include <SDL2/SDL_keycode.h>
 #include <iostream>
+#include <stdexcept>
+#include <string>
+
+namespace {
+[[noreturn]] void failSdlInit(SDL_Window* window,
+                              SDL_Renderer* renderer,
+                              SDL_Texture* texture,
+                              const char* step) {
+    std::string message = std::string(step) + " failed: " + SDL_GetError();
+
+    if (texture) {
+        SDL_DestroyTexture(texture);
+    }
+    if (renderer) {
+        SDL_DestroyRenderer(renderer);
+    }
+    if (window) {
+        SDL_DestroyWindow(window);
+    }
+
+    SDL_Quit();
+    throw std::runtime_error(message);
+}
+}
 
 Application::Application() : m_frameBuffer(APP_WIDTH, APP_HEIGHT), m_renderer(m_frameBuffer) {
-
-    SDL_Init(SDL_INIT_VIDEO);
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        failSdlInit(nullptr, nullptr, nullptr, "SDL_Init");
+    }
 
     m_window = SDL_CreateWindow(
         "SoftRenderer - 2D Drawing",
@@ -20,12 +45,18 @@ Application::Application() : m_frameBuffer(APP_WIDTH, APP_HEIGHT), m_renderer(m_
         APP_WIDTH, APP_HEIGHT,
         SDL_WINDOW_SHOWN
     );
+    if (!m_window) {
+        failSdlInit(nullptr, nullptr, nullptr, "SDL_CreateWindow");
+    }
 
     m_sdlrenderer = SDL_CreateRenderer(
         m_window,
         -1,
-        SDL_RENDERER_ACCELERATED
+        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
     );
+    if (!m_sdlrenderer) {
+        failSdlInit(m_window, nullptr, nullptr, "SDL_CreateRenderer");
+    }
 
     m_texture = SDL_CreateTexture(
         m_sdlrenderer,
@@ -33,6 +64,9 @@ Application::Application() : m_frameBuffer(APP_WIDTH, APP_HEIGHT), m_renderer(m_
         SDL_TEXTUREACCESS_STREAMING,
         APP_WIDTH, APP_HEIGHT
     );
+    if (!m_texture) {
+        failSdlInit(m_window, m_sdlrenderer, nullptr, "SDL_CreateTexture");
+    }
 
     m_running = true;
 
@@ -152,45 +186,7 @@ void Application::render() {
 
 void Application::drawScene() {
     for (const auto& shape : m_scene.m_shapes) {
-        switch (shape->getType()) {
-            case 1: { // Point
-                auto p = std::static_pointer_cast<Point>(shape);
-                m_renderer.drawPixel(p->position, p->color);
-                break;
-            }
-            case 2: { // Line
-                auto l = std::static_pointer_cast<Line>(shape);
-                m_renderer.drawLine(l->start, l->end, l->color);
-                break;
-            }
-            case 3: { // Triangle
-                auto t = std::static_pointer_cast<Triangle>(shape);
-                m_renderer.drawTriangle(t->v0, t->v1, t->v2, t->color);
-                break;
-            }
-            case 4: { // Circle
-                auto c = std::static_pointer_cast<Circle>(shape);
-                m_renderer.drawCircle(c->center, c->radius, c->color);
-                break;
-            }
-            case 5: { // Rectangle
-                auto r = std::static_pointer_cast<Rectangle>(shape);
-                m_renderer.drawQuad(r->v[0], r->v[1], r->v[2], r->v[3], r->color);
-                break;
-            }
-            case 6: { // Square
-                auto s = std::static_pointer_cast<Square>(shape);
-                m_renderer.drawQuad(s->v[0], s->v[1], s->v[2], s->v[3], s->color);
-                break;
-            }
-            case 7: { // Fill (Points)
-                auto f = std::static_pointer_cast<Points>(shape);
-                for (const auto& pt : f->m_points) {
-                    m_renderer.drawPixel(pt.position, pt.color);
-                }
-                break;
-            }
-        }
+        shape->draw(m_renderer);
     }
 }
 
@@ -467,9 +463,9 @@ void Application::handleMouseButtonDown(const SDL_MouseButtonEvent& button) {
         break;
     }
     case DrawMode::Fill: {
-        Points* filledPoints = new Points();
-        m_renderer.scanlineSeedFill(worldPos, m_currentColor, filledPoints);
-        m_scene.Fill(*filledPoints, m_currentColor);
+        Points filledPoints;
+        m_renderer.scanlineSeedFill(worldPos, m_currentColor, &filledPoints);
+        m_scene.Fill(filledPoints);
         break;
     }
     case DrawMode::ClipRect: {

@@ -20,14 +20,13 @@ public:
     void addRectangle(Vec2 topLeft, Vec2 bottomRight, uint32_t color);
     void addSquare(Vec2 topLeft, float sideLength, uint32_t color);
 
-    void Fill(Points points, uint32_t color);
+    void Fill(const Points& points);
 
     void undo();
     void redo();
 
     void clear();
 
-    // Apply a 2D affine transform to all shapes in place
     void transformAll(const Mat3& matrix);
 
     std::vector<std::shared_ptr<Shape>> m_shapes;

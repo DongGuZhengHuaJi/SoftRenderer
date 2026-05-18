@@ -46,7 +46,7 @@ void Scene::addSquare(Vec2 topLeft, float sideLength, uint32_t color) {
     pushShape(std::make_shared<Square>(topLeft, sideLength, color));
 }
 
-void Scene::Fill(Points points, uint32_t color) {
+void Scene::Fill(const Points& points) {
     pushShape(std::make_shared<Points>(points));
 }
 
@@ -90,58 +90,7 @@ void Scene::clear() {
 }
 
 void Scene::transformAll(const Mat3& matrix) {
-    // Approximate uniform scale factor for radius adjustment
-    float scaleX = std::sqrt(matrix.m[0] * matrix.m[0] + matrix.m[1] * matrix.m[1]);
-    float scaleY = std::sqrt(matrix.m[3] * matrix.m[3] + matrix.m[4] * matrix.m[4]);
-    float avgScale = (scaleX + scaleY) * 0.5f;
-
     for (auto& shape : m_shapes) {
-        switch (shape->getType()) {
-        case 1: { // Point
-            auto p = std::static_pointer_cast<Point>(shape);
-            p->position = matrix.transform(p->position);
-            break;
-        }
-        case 2: { // Line
-            auto l = std::static_pointer_cast<Line>(shape);
-            l->start = matrix.transform(l->start);
-            l->end   = matrix.transform(l->end);
-            break;
-        }
-        case 3: { // Triangle
-            auto t = std::static_pointer_cast<Triangle>(shape);
-            t->v0 = matrix.transform(t->v0);
-            t->v1 = matrix.transform(t->v1);
-            t->v2 = matrix.transform(t->v2);
-            break;
-        }
-        case 4: { // Circle
-            auto c = std::static_pointer_cast<Circle>(shape);
-            c->center = matrix.transform(c->center);
-            c->radius *= avgScale;
-            break;
-        }
-        case 5: { // Rectangle
-            auto r = std::static_pointer_cast<Rectangle>(shape);
-            for (int i = 0; i < 4; i++) {
-                r->v[i] = matrix.transform(r->v[i]);
-            }
-            break;
-        }
-        case 6: { // Square
-            auto s = std::static_pointer_cast<Square>(shape);
-            for (int i = 0; i < 4; i++) {
-                s->v[i] = matrix.transform(s->v[i]);
-            }
-            break;
-        }
-        case 7: { // Points (fill)
-            auto pts = std::static_pointer_cast<Points>(shape);
-            for (auto& pt : pts->m_points) {
-                pt.position = matrix.transform(pt.position);
-            }
-            break;
-        }
-        }
+        shape->transform(matrix);
     }
 }

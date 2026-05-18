@@ -1,12 +1,12 @@
 #pragma once
+#include "math/Vec2.h"
+
+class Renderer;
+
 class Shape {
 public:
     virtual ~Shape() = default;
 
-    int getType() const { return m_type; }
-
-protected:
-    Shape(int type) : m_type(type) {}
-    
-    int m_type = -1;
+    virtual void draw(Renderer& renderer) const = 0;
+    virtual void transform(const Mat3& matrix) = 0;
 };

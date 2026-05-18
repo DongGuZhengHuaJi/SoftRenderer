@@ -49,8 +49,8 @@ private:
     SDL_Renderer* m_sdlrenderer = nullptr;
     SDL_Texture* m_texture = nullptr;
 
-    Renderer m_renderer;
     FrameBuffer m_frameBuffer;
+    Renderer m_renderer;
 
     Scene m_scene;
 

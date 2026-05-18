@@ -49,6 +49,33 @@ struct Mat3 {
 
     static Mat3 identity() { return Mat3(); }
 
+    Mat3 inverse() const {
+        Mat3 r;
+        float a = m[0], c = m[3], tx = m[6];
+        float b = m[1], d = m[4], ty = m[7];
+
+        // 计算左上角 2x2 矩阵的行列式
+        float det = a * d - b * c;
+        if (std::abs(det) < 1e-6f) return r; // 防止除以 0 导致崩溃
+
+        float invDet = 1.0f / det;
+        
+        // 填充逆矩阵的缩放、旋转、错切分量
+        r.m[0] = d * invDet;
+        r.m[3] = -c * invDet;
+        r.m[1] = -b * invDet;
+        r.m[4] = a * invDet;
+
+        // 填充逆矩阵的平移分量
+        r.m[6] = -(d * tx - c * ty) * invDet;
+        r.m[7] = -(-b * tx + a * ty) * invDet;
+
+        // 最后一行固定为 0, 0, 1
+        r.m[2] = 0; r.m[5] = 0; r.m[8] = 1;
+
+        return r;
+    }
+
     static Mat3 translate(float tx, float ty) {
         Mat3 r;
         r.m[6] = tx;

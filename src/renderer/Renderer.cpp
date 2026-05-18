@@ -1,4 +1,5 @@
 #include "graphics/Points.h"
+#include "math/Vec2.h"
 #include "renderer/FrameBuffer.h"
 #include "renderer/Renderer.h"
 #include "renderer/Clipper.h"
@@ -130,6 +131,51 @@ void Renderer::drawCircle(const Vec2& center, float radius, uint32_t color) {
         } else {
             err -= 2 * x - 1;
             x--;
+        }
+    }
+}
+
+void Renderer::drawCircle(const Mat3& localToWorld, uint32_t color) {
+
+    Mat3 worldToScreen = Mat3::translate(APP_WIDTH * 0.5f, APP_HEIGHT * 0.5f) * Mat3::scale(1.0f, -1.0f);
+
+    Mat3 localToScreen = worldToScreen * localToWorld;
+
+    Mat3 screenToLocal = localToScreen.inverse();
+
+    float a = localToScreen.m[0], c = localToScreen.m[3], x0 = localToScreen.m[6];
+    float b = localToScreen.m[1], d = localToScreen.m[4], y0 = localToScreen.m[7];
+
+    // 包围盒范围（线框也必须包含在完整包围盒里）
+    float halfWidth  = std::sqrt(a * a + c * c);
+    float halfHeight = std::sqrt(b * b + d * d);
+    float scaleX = std::sqrt(a * a + b * b);
+    float scaleY = std::sqrt(c * c + d * d);
+    float avgScale = std::max(1e-6f, 0.5f * (scaleX + scaleY));
+
+    // thickness 按屏幕像素解释，先换算成单位圆空间里的半厚度
+    float localHalfThickness = 0.5f * 1.5f / avgScale;
+    float innerRadius = std::max(0.0f, 1.0f - localHalfThickness);
+    float outerRadius = 1.0f + localHalfThickness;
+    float innerSq = innerRadius * innerRadius;
+    float outerSq = outerRadius * outerRadius;
+
+    int minX = static_cast<int>(std::floor(x0 - halfWidth));
+    int maxX = static_cast<int>(std::ceil(x0 + halfWidth));
+    int minY = static_cast<int>(std::floor(y0 - halfHeight));
+    int maxY = static_cast<int>(std::ceil(y0 + halfHeight));
+
+    for (int y = minY; y <= maxY; ++y) {
+        for (int x = minX; x <= maxX; ++x) {
+            Vec2 localPt = screenToLocal.transform(Vec2(static_cast<float>(x), static_cast<float>(y)));
+
+            // 计算到原点的距离平方
+            float distSq = localPt.x * localPt.x + localPt.y * localPt.y;
+
+            // 判定是否落在单位圆边界附近的环带内
+            if (distSq >= innerSq && distSq <= outerSq) {
+                drawPixelScreen(x, y, color);
+            }
         }
     }
 }
